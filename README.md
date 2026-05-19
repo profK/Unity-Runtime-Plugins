@@ -27,8 +27,10 @@ Detailed design specifications, execution lifecycles, and step-by-step developer
 
 ---
 
-## 🛠️ Getting Started in 3 Steps
+## 🛠️ Getting Started in 4 Steps
 
-1. **Scaffold a Project**: Open Unity and navigate to the menu bar under **Plugins > Project Generator** to create a fresh stub module under `Assets/PluginProjects/`.
-2. **Build the WASM Binary**: Open **Tools > Plugin Builder**, select your plugin, and click **Compile and Build WASM** to output the packaged zip module.
-3. **Bind UI Elements**: Attach a `WasmRuntimeProxy` and a `WasmRuntimeUIBridge` to your canvas UI panel, click **Scan**, map your button clicks to your plugin's C# methods, and press Play!
+1. **Initialize the System**: In the Unity top menu bar, select **Plugins > Initialize System**. This runs an automated check confirming your .NET 8 SDK installation, installs the required `wasi-wasm` compiler workload, and configures core target directories.
+2. **Scaffold a Project**: Navigate to **Plugins > Project Generator** to create a fresh stub module under `Assets/PluginProjects/`.
+3. **Build the WASM Binary**: Open **Tools > Plugin Builder**, select your plugin, and click **Compile and Build WASM** to output the packaged zip module.
+4. **Bind UI Elements**: Attach a `WasmRuntimeProxy` and a `WasmRuntimeUIBridge` to your canvas UI panel, click **Scan UI & Plugin Source Code**, map your button clicks to your plugin's C# methods, and press Play!
+
