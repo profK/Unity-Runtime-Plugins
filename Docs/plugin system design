@@ -153,3 +153,20 @@ Server plugins run on **headless Unity Dedicated Servers** (where `Application.i
 * **No GUI Components**: Server modules have no UXML UI Toolkit layouts or Canvas GameObjects. They do not attach or require the `WasmRuntimeUIBridge` component.
 * **Direct Scripted IPC / JSON Command routing**: Rather than using visual click bridges, the server environment routes networking packets or custom gameplay events to the guest module using `WasmRuntimeProxy.InvokeFunction(...)` or `SendCommand<TCommand>(...)` directly.
 * **The Server Lifecycle Directory**: Place your authority logic inside the `server/source_code~/` directory. The `PluginManager` will automatically load and compile the WASM binary under the `server/` subdirectory when running in headless batch mode.
+
+---
+
+### Multi-Platform Deployment Guidelines
+
+* **Windows (Standalone)**:
+  * **Native engine**: `wasmtime.dll` in `Runtime/Plugins/x86_64/`.
+  * **Folders**: StreamingAssets (`[BuildPath]/[AppName]_Data/StreamingAssets/Plugins/`) or LocalLow persistent AppData folder.
+* **macOS (Standalone)**:
+  * **Native engine**: `libwasmtime.dylib` (Intel) & `libwasmtime_arm.dylib` (Apple Silicon).
+  * **App Sandbox Entitlements**: App Store builds must enable user-selected file read-write (`com.apple.security.files.user-selected.read-write`) and client network connection (`com.apple.security.network.client`) entitlements.
+* **Linux (Standalone / Dedicated Headless)**:
+  * **Native engine**: `libwasmtime.so` in `Runtime/Plugins/x86_64/`.
+  * **Permissions**: Command line server users must configure read-write filesystem permissions (`chmod -R +rw ./Plugins/`).
+* **Web (WebGL Browsers)**:
+  * **Restrictions**: Desktop multithreaded WASM runtimes (like Wasmtime) are not natively supported in standard WebGL browser sandboxes.
+  * **WebGL Fallback**: Compile plugins using Unity's native WebGL builder or host them via standalone JavaScript-instantiated browser engines (`WebAssembly.instantiate()`), communication routing through standard browser-to-Unity message brokers (`JSLib` / `SendMessage`).

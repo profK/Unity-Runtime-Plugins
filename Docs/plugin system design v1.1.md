@@ -303,8 +303,64 @@ Server plugins run on **headless Unity Dedicated Servers** (where `Application.i
 
 ---
 
-## 8. Design Constraints & Rules
-
 - **Decoupling**: No direct binary or assembly references from host code to guest plugin assemblies are permitted. All communications must remain decoupled and sandboxed.
 - **Sandboxing**: WASM modules cannot access host memory directly except through mounted, preopened sandboxed folders mapped in `WasmRuntimeProxy`.
 - **Platform Agnostic**: Plugins must function across Windows, Mac, and Linux environments without requiring target platform recompilations.
+
+---
+
+## 9. Multi-Platform Deployment Guide
+
+Deploying WASM plugins requires understanding how different target platforms handle sandboxing, dynamic library runtimes, and local file access permissions.
+
+### 9.1 General Deployment Concept
+All build architectures locate plugins as **ZIP archives** (e.g. `InventoryModule.zip`) placed inside a target source directory. During runtime initialization, the `PluginManager` extracts these archives into a writable extraction directory (`Application.persistentDataPath + "/ExtractedPlugins/"`), mounts filesystems, and starts execution.
+
+---
+
+### 9.2 Windows Deployment (Standalone PC)
+* **Target Environment**: Standard 64-bit Windows systems.
+* **Native Runtime Setup**: Ensure the Windows native `wasmtime` engine library (`wasmtime.dll`) is included under the package’s `Runtime/Plugins/x86_x64/` directory.
+* **Directory Locations**:
+  * **Streaming Assets (Read-Only Source)**: `[BuildPath]/[AppName]_Data/StreamingAssets/Plugins/`
+  * **Persistent Storage (Extracted Target)**: `C:\Users\[Username]\AppData\LocalLow\[CompanyName]\[ProductName]\Plugins\`
+* **Execution details**: No elevated permissions are required. Wasmtime runs safely within standard user privilege environments.
+
+---
+
+### 9.3 macOS Deployment (Standalone Mac)
+* **Target Environment**: Apple Silicon (`arm64`) & Intel (`x86_64`) macOS.
+* **Native Runtime Setup**: Ensure both `libwasmtime.dylib` (Intel) and `libwasmtime_arm.dylib` (Apple Silicon) are compiled and present in the dynamic framework paths.
+* **App Sandboxing & Entitlements (App Store / Notarization)**:
+  > [!IMPORTANT]
+  > macOS builds compiled under Apple App Sandbox restrictions must explicitly declare the following entitlements in their `entitlements.plist` file:
+  > * `com.apple.security.files.user-selected.read-write` (allows reading and writing plugin streams).
+  > * `com.apple.security.network.client` (required if guest modules route IPC via TCP sockets instead of file streams).
+* **Directory Locations**:
+  * **Streaming Assets (Read-Only Source)**: `[AppName].app/Contents/Resources/Data/StreamingAssets/Plugins/`
+  * **Persistent Storage (Extracted Target)**: `/Users/[Username]/Library/Application Support/[CompanyName]/[ProductName]/Plugins/`
+
+---
+
+### 9.4 Linux Deployment (Standalone Linux / Headless Dedicated Servers)
+* **Target Environment**: Standard Linux distributions, cloud virtual machines, multiplayer game servers.
+* **Native Runtime Setup**: Ensure the Linux native `libwasmtime.so` engine library is correctly included and verified in Unity's Platform inspector settings.
+* **Directory Locations**:
+  * **Game Clients**: `[BuildPath]/[AppName]_Data/StreamingAssets/Plugins/`
+  * **Headless Server (Command Line / Batch Mode)**: Create a standalone `Plugins/` folder in the same root folder as the executable binary:
+    `./Plugins/ServerAuthorityModule.zip`
+* **File Permissions**:
+  > [!WARNING]
+  > Headless Linux servers must have proper filesystem read/write privileges configured. Ensure the executing shell user has standard permissions to create and modify folders inside the extraction path:
+  > `chmod -R +rw ./Plugins/`
+
+---
+
+### 9.5 Web Deployment (WebGL Browser)
+* **Target Environment**: HTML5 / WebGL browser runtimes.
+* **Runtime Restrictions**:
+  > [!CAUTION]
+  > Standalone WASM runtimes (like Wasmtime) rely on native C/C++ dynamic libraries (`.dll`, `.dylib`, `.so`) and background polling threads, which are **not supported in standard WebGL browser sandboxes** due to security restrictions and single-threaded JavaScript execution loops.
+* **WebGL Fallback Architecture**:
+  1. **Compiling Guest Plugins to Native JS WASM**: Instead of running a Wasmtime VM instance inside WebGL, compile your guest C# plugin directly using Unity's native WebGL builder (which compiles the entire game to WebAssembly) or deploy it as a standalone browser WASM file.
+  2. **Browser JS-WASM Interop**: In WebGL environments, the `WasmRuntimeProxy` bypasses file-based text IPC and implements communication using standard browser WebAssembly instantiate APIs (`WebAssembly.instantiate()`) and JavaScript-to-Unity message routines (`JSLib` / `SendMessage`).
