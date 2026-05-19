@@ -2,6 +2,9 @@
 
 A high-performance, secure, and fully sandboxed **.NET WebAssembly (WASM) Plugin System** built for **Unity 6**. It allows developers to build, load, compile, and execute sandboxed guest C# plugins dynamically at runtime across both visual client applications and headless dedicated servers.
 
+> [!IMPORTANT]
+> Although this system is designed to work over Windows, Mac, Linux, and WASM, it is currently being developed on a Mac. No compatibility with other platforms is assured until the 1.0 release.
+
 ---
 
 ## 📦 Installation
