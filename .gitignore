@@ -16,6 +16,8 @@
 /[Aa]ssets/Plugins/
 /Plugins/
 *.zip
+*.tgz
+
 
 # Memory dumps
 *.lld
