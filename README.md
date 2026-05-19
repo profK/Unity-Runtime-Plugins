@@ -4,6 +4,21 @@ A high-performance, secure, and fully sandboxed **.NET WebAssembly (WASM) Plugin
 
 ---
 
+## 📦 Installation
+
+The core plugin package is located inside this repository at:
+`Packages/com.jeff.unityruntimeplugins`
+
+To import it into your Unity project:
+1. Open the **Package Manager** in Unity (**Window > Package Manager**).
+2. Click the **`+`** icon in the top-left corner of the window.
+3. Select **Add package from disk...**
+4. Navigate to `Packages/com.jeff.unityruntimeplugins/`, select the `package.json` file, and click **Open**.
+
+![Unity Package Manager Installation](./Docs/package_installation.png)
+
+---
+
 ## 🚀 Key Features
 
 * **Thread-Safe Inversion of Control (IoC) Container**: Register and resolve plugins dynamically across guest modules via our locator (`PluginIoCContainer`) for seamless cross-plugin communication.
