@@ -9,14 +9,21 @@ A high-performance, secure, and fully sandboxed **.NET WebAssembly (WASM) Plugin
 
 ## 📦 Installation
 
-The core plugin package is located inside this repository at:
-`Packages/com.jeff.unityruntimeplugins`
+### Option A: Install Package from Disk (Recommended for active package editing)
+The core package files are located at: `Packages/com.jeff.unityruntimeplugins`
 
-To import it into your Unity project:
 1. Open the **Package Manager** in Unity (**Window > Package Manager**).
 2. Click the **`+`** icon in the top-left corner of the window.
 3. Select **Add package from disk...**
 4. Navigate to `Packages/com.jeff.unityruntimeplugins/`, select the `package.json` file, and click **Open**.
+
+### Option B: Install Package from Tarball (Recommended for stable standalone distribution)
+We provide a pre-packaged tarball at the root of this repository: `com.jeff.unityruntimeplugins-1.0.0.tgz`
+
+1. Open the **Package Manager** in Unity (**Window > Package Manager**).
+2. Click the **`+`** icon in the top-left corner of the window.
+3. Select **Add package from tarball...**
+4. Navigate to and select `com.jeff.unityruntimeplugins-1.0.0.tgz`, and click **Open**.
 
 ![Unity Package Manager Installation](./Docs/package_installation.png)
 
