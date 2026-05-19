@@ -1,0 +1,20 @@
+{
+    "name": "com.jeff.unityruntimeplugins.editor",
+    "rootNamespace": "UnityRuntimePlugins.Editor",
+    "references": [
+        "com.jeff.unityruntimeplugins",
+        "Unity.Addressables",
+        "Unity.Addressables.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

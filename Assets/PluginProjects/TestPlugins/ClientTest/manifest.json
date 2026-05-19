@@ -1,0 +1,7 @@
+{
+    "name": "ClientTest",
+    "version": "1.0.0",
+    "entryPoint": "ClientTest.wasm",
+    "dependencies": [],
+    "capabilities": []
+}

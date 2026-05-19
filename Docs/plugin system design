@@ -1,0 +1,155 @@
+### Introduction
+The UnityRuntimePlugins package is a Unity 6 package that provides a framework for creating plugins for the Unity 6 editor and runtime.  
+It provides a simple interface for creating plugins and provides a framework for sharing data between plugins and the main application. Plugins are loaded at runtime from a specified directory or its sub-directories. Plugins are deployed and loaded as zip files containing a directory tree of plugin modules. It can be imported into a Unity project via the Package Manager in order to create new plugins.    
+
+Each plugin module is organized as a sub-directory of the plugin. The sub-directory contains a `manifest.json` file that defines the plugin module, as well as the plugin code and assets. Each module can contain a client folder, a server folder, or both. It may also contain a common folder for code and assets that are used by both client and server. 
+
+Assets in each of the folders are organized into subdirectories that contain assets loaded by the Addressables system or streaming assets. When a plugin is loaded, the plugin manager will load the assets for the appropriate runtime (client or server) as well as the common assets. A module also has a `source_code~` directory that contains source code which is compiled to WASM when the plugin is built. Source code is not used at runtime, only the compiled WASM modules placed in the streaming assets directory by the build process.
+
+---
+
+### Directory Hierarchy & Manifests
+
+#### 1. Plugin Archive Structure
+```text
+<Plugin-Archive>.zip/
+└── <module-name>/
+    ├── manifest.json           # Required: Module metadata
+    ├── client/                 # Loaded if Application.isBatchMode == false
+    │   ├── addressables/       # Addressable assets (prefabs, textures, audio)
+    │   ├── streaming_assets/   # Compiled logic (.wasm) & mounted runtime files
+    │   └── source_code~/       # C# source (tilde ignores it in Unity Editor compile)
+    ├── server/                 # Loaded if Application.isBatchMode == true
+    │   ├── addressables/
+    │   ├── streaming_assets/
+    │   └── source_code~/
+    └── common/                 # Loaded in all environments
+        ├── addressables/
+        ├── streaming_assets/
+        └── source_code~/
+```
+
+#### 2. manifest.json Schema
+```json
+{
+  "name": "string",             // Unique identifier for the module
+  "version": "string",          // SemVer versioning (e.g. 1.0.0)
+  "entryPoint": "string.wasm",  // Main logic binary located inside streaming_assets
+  "dependencies": [],           // List of other module names required at boot
+  "capabilities": []            // e.g., ["UI", "Network", "FileSystem"]
+}
+```
+
+---
+
+### Non-GUI Addressables & Asset Access
+
+Non-GUI Addressables are non-interface assets (such as `AudioClip`, `Texture2D`, `Material`, `TextAsset` configs, or gameplay `Prefab` models) packaged inside a module's `addressables/` or `streaming_assets/` directories.
+
+#### 1. Unity Addressable Asset Requirements
+To be successfully resolved by the `PluginManager` asset pipeline, each Addressable asset must meet the following:
+1. **Check the 'Addressable' Property**: The asset's **Addressable** checkbox must be checked at the top of its Unity Inspector window.
+2. **Set a Unique Address Path**: The address path of the asset (e.g. `Sounds/Explosion.mp3`) must be defined inside the Addressable text input field and match the string key used during loading calls.
+3. **Addressables Group Mapping**: The asset must reside in a dedicated group inside Unity's **Addressables Groups** window, ensuring it is compiled into the plugin's dynamic asset catalog.
+
+#### 2. Accessing Assets from Inside the WASM Guest (Plugin Code)
+* **Direct File System Access (for `streaming_assets/` files)**:
+  Because the host mounts the module's sandboxed filesystem under WASI permissions, your guest code can read data files directly using standard C# `System.IO` calls, bypassing IPC completely:
+  ```csharp
+  string configJson = File.ReadAllText("configs/settings.json");
+  ```
+* **IPC Request Access (for Addressable assets)**:
+  Since the Guest VM cannot hold direct references to native Unity objects (`UnityEngine.Object`), it sends an IPC command requesting the Host to load and operate on the asset:
+  ```csharp
+  SendCommand("PLAY_AUDIO:Sounds/Explosion.mp3");
+  ```
+
+#### 3. Accessing Plugin Assets from the Unity Host (Outside the Plugin)
+The main Unity application or other host systems can directly inspect and load assets belonging to a specific module using `IPluginServices`:
+* **Querying Asset Paths**:
+  ```csharp
+  IEnumerable<string> audioKeys = await pluginServices.GetAssetsByType<AudioClip>("AudioModule");
+  ```
+* **Loading Asset Instances**:
+  ```csharp
+  AudioClip clip = await pluginServices.LoadAsset<AudioClip>("AudioModule", "Sounds/Explosion.mp3");
+  ```
+
+---
+
+### WASM-Host Communication Protocol
+The system utilizes a secure, high-performance File-Based IPC Channel inside the module's sandboxed `streaming_assets` directory to support precompiled assembly runtimes under Mono's WASM engine without native linker lookup limits:
+
+1. **Mount Permissions**: Mounted with combined read/write capabilities (`WasiDirectoryPermissions.Read | WasiDirectoryPermissions.Write`).
+2. **IPC Data Flow**:
+   * **Host to Guest (`host_to_guest.txt`)**: Host writes UI events; Guest reads, handles, and clears the file.
+   * **Guest to Host (`guest_to_host.txt`)**: Guest writes `COMMAND:DATA` (e.g., `[SET_TEXT]:StatusText|pressed!`); Host reads, executes, and clears the file.
+3. **WasmPluginBase Streamlining**: Instead of manual file polling, locking, and parsing, guest C# codes inherit from `WasmPluginBase` which encapsulates this loop, exposing high-level methods like `SetText()`, `CallPlugin()`, `CallUnityStatic()`, and `CallUnityInstance()`.
+4. **Graceful Exit Protocol**: Exiting Play Mode triggers the Host to write `"EXIT"` to `host_to_guest.txt`. The Guest halts execution gracefully and the Host waits `150ms` before disposing of Wasmtime store/engine resources, preventing native segmentation faults and Unity Editor crashes.
+5. **Diagnostics Logging**: Guest logs written to `guest_debug.log` are aggregated by the Host and appended into a centralized `unity_wasm_debug.log` in the project root.
+
+---
+
+### Plugin Manager Services
+In addition to loading and unloading plugins, the plugin manager provides a number of services to plugins. These services are exposed through the `IPluginServices` interface:
+
+* **GetLoadedModules()**: Returns a list of all loaded plugin modules.
+* **LoadAsset<T>()**: Asynchronously loads an asset from a specific module.
+* **InvokeWasmFunction()**: Invokes a function in a WASM module by name.
+* **SendCommand<TCommand>()**: Invokes a function on a module using a strongly-typed command payload serialized as JSON. A robust index-based split parser ensures nested JSON pipes do not corrupt arguments.
+* **GetAssetsByType<T>()**: Returns a list of asset keys/paths for assets of a specific type in a module.
+
+---
+
+### Services & Inter-Plugin Interop (IoC)
+Plugins register themselves dynamically under the `ICallablePlugin` interface in the thread-safe `PluginIoCContainer` during boot, enabling decoupled service locator calls and dynamic linking:
+```csharp
+// Resolution
+var target = PluginIoCContainer.Instance.Resolve<ICallablePlugin>("InventoryModule");
+target?.InvokeFunction("AddItem", "Sword", "1");
+```
+
+---
+
+### Dynamic Unity API Callbacks (Reflection Router)
+Guest WASM plugins can invoke **arbitrary Unity C# methods** on the Host dynamically without modifying host scripts, registering handlers, or holding binary dependencies. This is achieved using our thread-safe **Dynamic Reflection Router** executing safely on Unity's main thread:
+
+#### 1. Calling Static Utility Methods
+From your guest plugin code, call `CallUnityStatic(typeFullName, methodName, args...)`. This resolves the type across all loaded assemblies, finds the matching static method, converts string arguments to their target types, and executes it:
+```csharp
+CallUnityStatic("UnityEngine.Debug", "Log", "Hello from Guest VM reflection!");
+```
+
+#### 2. Calling Active Scene GameObject Component Methods
+To invoke instance methods on a component attached to an active GameObject in your scene hierarchy, call `CallUnityInstance(gameObjectName, componentName, methodName, args...)`:
+```csharp
+CallUnityInstance("Hero", "PlayerController", "CustomMethod", "argVal1", "123");
+```
+
+---
+
+### Utility Components
+These are Unity components that are provided by the plugin manager to assist application code in loading and using plugin modules.
+
+* **PluginManagerRuntimeLoader**: A component that can be added to a MonoBehaviour to automatically load and unload plugins when the MonoBehaviour is enabled and disabled.
+* **WasmRuntimeProxy**: A component that can be added to a MonoBehaviour to provide a bridge between Unity code and plugin code. It manages mounting folders with write permissions, hosting polling loops, container registrations, and orchestrating graceful shutdown sequences.
+* **WasmRuntimeUIBridge**: Bridges UI actions and WASM function triggers. It maps events at edit-time via a custom inspector dropdown scanning UXML elements, GameObject uGUI components, and uncompiled C# source directories (`source_code~`) for public methods.
+
+---
+
+### Editor Tools
+The plugin manager provides a number of tools to assist developers in creating and managing plugins.
+* **Plugin System Initializer** - Automates environment setup, confirming .NET SDK installations, verifying target workloads, and setting up core asset project directories.
+* **Plugin Project Generator** - Creates a new plugin project with the directory structure and basic files, including a fully configured `.csproj` and `WasmPluginBase.cs` + `PluginLogic.cs` scaffold.
+* **Plugin Builder Tool** - Builds a plugin for distribution. It compiles source code to WASM and packs all files into a ZIP file.
+* **Plugin Inspector** - An inspector window for examining the details of plugin modules that have been loaded into the project.
+
+---
+
+### Writing Server Plugins
+Server plugins run on **headless Unity Dedicated Servers** (where `Application.isBatchMode == true` in terminal environments like Linux cloud servers). They are identical in design and structure to client plugins but contain multiplayer authority logic, matchmaking rule engines, database connections, or state sync simulations.
+
+#### Key Server Mappings & Features
+* **No GUI Components**: Server modules have no UXML UI Toolkit layouts or Canvas GameObjects. They do not attach or require the `WasmRuntimeUIBridge` component.
+* **Direct Scripted IPC / JSON Command routing**: Rather than using visual click bridges, the server environment routes networking packets or custom gameplay events to the guest module using `WasmRuntimeProxy.InvokeFunction(...)` or `SendCommand<TCommand>(...)` directly.
+* **The Server Lifecycle Directory**: Place your authority logic inside the `server/source_code~/` directory. The `PluginManager` will automatically load and compile the WASM binary under the `server/` subdirectory when running in headless batch mode.

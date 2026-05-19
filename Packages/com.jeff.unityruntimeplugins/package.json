@@ -1,0 +1,13 @@
+{
+  "name": "com.jeff.unityruntimeplugins",
+  "version": "1.0.0",
+  "displayName": "Unity Runtime Plugin System",
+  "description": "A framework for dynamic WASM-based plugins in Unity 6+.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Jeffrey Kesselman"
+  },
+  "dependencies": {
+    "com.unity.addressables": "1.21.19"
+  }
+}
