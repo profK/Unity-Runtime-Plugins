@@ -357,10 +357,17 @@ All build architectures locate plugins as **ZIP archives** (e.g. `InventoryModul
 ---
 
 ### 9.5 Web Deployment (WebGL Browser)
-* **Target Environment**: HTML5 / WebGL browser runtimes.
-* **Runtime Restrictions**:
-  > [!CAUTION]
-  > Standalone WASM runtimes (like Wasmtime) rely on native C/C++ dynamic libraries (`.dll`, `.dylib`, `.so`) and background polling threads, which are **not supported in standard WebGL browser sandboxes** due to security restrictions and single-threaded JavaScript execution loops.
-* **WebGL Fallback Architecture**:
-  1. **Compiling Guest Plugins to Native JS WASM**: Instead of running a Wasmtime VM instance inside WebGL, compile your guest C# plugin directly using Unity's native WebGL builder (which compiles the entire game to WebAssembly) or deploy it as a standalone browser WASM file.
-  2. **Browser JS-WASM Interop**: In WebGL environments, the `WasmRuntimeProxy` bypasses file-based text IPC and implements communication using standard browser WebAssembly instantiate APIs (`WebAssembly.instantiate()`) and JavaScript-to-Unity message routines (`JSLib` / `SendMessage`).
+* **Target Environment**: HTML5 / WebGL browser runtimes (Chrome, Safari, Firefox, Edge).
+* **Zero Recompilation Requirement**:
+  > [!NOTE]
+  > Since WebAssembly is natively platform-agnostic, **no separate compilation is required** for the Web! The exact same precompiled guest `.wasm` modules included inside the plugin `.zip` archives run directly and natively in browser environments without modification.
+* **Direct Browser Execution Pipeline**:
+  1. **Dynamic Bytecode Loading**: In WebGL environments, the `WasmRuntimeProxy` extracts the target C# compiled `.wasm` module directly from the plugin bundle into memory as a standard byte array buffer (`byte[]`).
+  2. **Browser Native WASM Engine**: The proxy utilizes a thin Unity JavaScript interop layer (`.jslib`) to pass the bytecode directly into the browser's native, highly-optimized WebAssembly compiler and execution pipeline:
+     ```javascript
+     // Under the hood, executed by the native browser engine
+     WebAssembly.instantiate(wasmBinaryBuffer, importObject).then(instance => {
+         // Resolve, map, and execute C# plugin callbacks instantly!
+     });
+     ```
+  3. **High-Performance In-Memory IPC**: Because the browser's native WASM engine runs directly inside the WebGL JavaScript thread, all host-to-guest and guest-to-host IPC commands bypass slow local filesystem text polling entirely. Instead, they execute as instantaneous, thread-safe, in-memory function calls, yielding zero latency and maximum performance!

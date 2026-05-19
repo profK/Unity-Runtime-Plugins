@@ -168,5 +168,6 @@ Server plugins run on **headless Unity Dedicated Servers** (where `Application.i
   * **Native engine**: `libwasmtime.so` in `Runtime/Plugins/x86_64/`.
   * **Permissions**: Command line server users must configure read-write filesystem permissions (`chmod -R +rw ./Plugins/`).
 * **Web (WebGL Browsers)**:
-  * **Restrictions**: Desktop multithreaded WASM runtimes (like Wasmtime) are not natively supported in standard WebGL browser sandboxes.
-  * **WebGL Fallback**: Compile plugins using Unity's native WebGL builder or host them via standalone JavaScript-instantiated browser engines (`WebAssembly.instantiate()`), communication routing through standard browser-to-Unity message brokers (`JSLib` / `SendMessage`).
+  * **Zero Recompilation**: The exact same precompiled guest `.wasm` modules inside the plugin `.zip` run natively in browsers without secondary compilation.
+  * **Direct Browser Execution**: Memory-mapped binary buffers are loaded directly inside the browser's highly-optimized native engine (`WebAssembly.instantiate(wasmBytes, imports)`).
+  * **High-Performance In-Memory IPC**: Instantiated directly on the browser thread, executing IPC instantly as thread-safe, in-memory function calls (yielding zero filesystem or polling latency).
